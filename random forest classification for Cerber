@@ -1,0 +1,77 @@
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, f1_score, recall_score, precision_score, roc_curve, auc
+from sklearn.ensemble import RandomForestClassifier
+from imblearn.over_sampling import RandomOverSampler
+import matplotlib.pyplot as plt
+
+# Read the dataset
+df = pd.read_csv("/content/Dataset.txt", header=None)
+
+# Define class labels and their corresponding original sample counts
+class_labels = {
+    "Benign": 438,
+    "Reveton": 948,
+    "Cerber": 897,
+    "teslacrypt": 914,
+    "Locky": 944,
+    "Yakes": 925
+}
+
+# Adjust sampling strategy to ensure it's feasible for over-sampling
+sampling_strategy = {label: min(count, len(df)) for label, count in class_labels.items()}
+
+# Oversample the minority classes to handle class imbalance
+oversampler = RandomOverSampler(sampling_strategy=sampling_strategy, random_state=42)
+x_resampled, y_resampled = oversampler.fit_resample(df.iloc[:, :-1], df.iloc[:, -1])
+
+# Split the resampled data into features and target
+x_train, x_test, y_train, y_test = train_test_split(x_resampled, y_resampled, test_size=0.2, random_state=75)
+
+# Instantiate and train the RandomForestClassifier
+classifier = RandomForestClassifier(n_estimators=50, random_state=10)
+classifier.fit(x_train, y_train)
+
+# Generate predictions
+y_pred = classifier.predict(x_test)
+
+# Calculate true positives (TP), true negatives (TN), false positives (FP), and false negatives (FN) for Cerber class
+TP = sum((y_pred == y_test) & (y_pred == 'Cerber'))
+TN = sum((y_pred == y_test) & (y_pred != 'Cerber'))
+FP = sum((y_pred != y_test) & (y_pred == 'Cerber'))
+FN = sum((y_pred != y_test) & (y_pred != 'Cerber'))
+
+# Calculate accuracy for Cerber class
+accuracy = (TP + TN) / (TP + TN + FP + FN)
+
+# Calculate recall for Cerber class
+recall = TP / (TP + FN)
+
+# Calculate precision for Cerber class
+precision = TP / (TP + FP)
+
+# Calculate F1-score for Cerber class
+f1 = 2 * (precision * recall) / (precision + recall)
+
+# Print the evaluation metrics for Cerber class
+print("Accuracy (Cerber):", accuracy)
+print("Precision (Cerber):", precision)
+print("Recall (Cerber):", recall)
+print("F1 Score (Cerber):", f1)
+
+# Plot ROC curve for Cerber class only
+plt.figure(figsize=(8, 6))
+y_true_binary = y_test == 'Cerber'
+y_score = classifier.predict_proba(x_test)[:, list(class_labels.keys()).index('Cerber')]
+fpr, tpr, _ = roc_curve(y_true_binary, y_score)
+roc_auc = auc(fpr, tpr)
+plt.plot(fpr, tpr, label=f'ROC curve (area = {roc_auc:.2f})')
+
+plt.plot([0, 1], [0, 1], 'k--')
+plt.xlim([0.0, 1.0])
+plt.ylim([0.0, 1.05])
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('Receiver Operating Characteristic (ROC) Curve for Cerber Class')
+plt.legend(loc="lower right")
+plt.show()
